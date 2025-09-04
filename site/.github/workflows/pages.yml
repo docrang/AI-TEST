@@ -2,7 +2,7 @@ name: Deploy static site to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 permissions:
   contents: read
@@ -20,7 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # site 폴더 전체를 그대로 업로드(빌드 없음)
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
