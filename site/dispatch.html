@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>배차 프로그램 (무설치 · 단일파일)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#111831; --muted:#7f8aa3; --text:#e8eefc; --accent:#6aa9ff; --danger:#ff6a6a; --ok:#46d38b;
+    }
+    html,body{height:100%;}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1430 40%,#10183a);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Malgun Gothic,sans-serif;}
+    .wrap{max-width:1100px;margin:32px auto;padding:0 16px;}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-size:20px;font-weight:700}
+    .badge{background:rgba(255,255,255,.06);color:var(--muted);padding:6px 10px;border-radius:999px;font-size:12px}
+    .row{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:920px){.row{grid-template-columns:1.1fr .9fr}}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .card .hd{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:600;display:flex;align-items:center;justify-content:space-between}
+    .card .bd{padding:14px 16px}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+    .grid label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+    input,select,textarea{background:#0c1228;border:1px solid rgba(255,255,255,.12);color:var(--text);padding:10px;border-radius:10px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(106,169,255,.2)}
+    textarea{min-height:40px;resize:vertical}
+    .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    button{border:0;border-radius:12px;padding:10px 14px;background:#1a2350;color:var(--text);cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+    .primary{background:linear-gradient(180deg,#3b82f6,#2563eb)}
+    .muted{background:#13204a;color:#cbd5e1}
+    .danger{background:#3a1010}
+    .ok{background:#0f3a2a}
+    .table-wrap{max-height:460px;overflow:auto;border-radius:0 0 16px 16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{white-space:nowrap;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+    th{position:sticky;top:0;background:rgba(17,24,49,.98);backdrop-filter:blur(6px);text-align:left;font-size:12px;color:#9fb0d2}
+    tr:hover{background:rgba(255,255,255,.02)}
+    .pill{padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12px}
+    .hint{color:var(--muted);font-size:12px}
+    .footer{opacity:.8;font-size:12px;color:#9fb0d2;margin-top:12px}
+    .searchbar{display:flex;gap:8px;flex-wrap:wrap}
+    .searchbar > *{flex:1}
+    .right{display:flex;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">배차 프로그램 <span class="badge">로컬 저장 + 내보내기/가져오기</span></div>
+      <div class="right">
+        <button id="btnExportCsv" title="CSV로 내보내기">CSV 내보내기</button>
+        <button id="btnExportJson" class="muted" title="JSON으로 내보내기">JSON 내보내기</button>
+        <label class="muted" style="display:inline-flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;cursor:pointer">
+          데이터 가져오기
+          <input id="fileImport" type="file" accept=".csv,.json" style="display:none" />
+        </label>
+      </div>
+    </header>
+
+    <section class="row">
+      <div class="card">
+        <div class="hd">배차 입력/수정</div>
+        <div class="bd">
+          <div class="grid" style="grid-template-columns:repeat(6,1fr)">
+            <label>일자<input type="date" id="fDate"></label>
+            <label>차량번호/ID<input type="text" id="fVehicle" placeholder="예: 12가3456 또는 차량ID"></label>
+            <label>운전자<input type="text" id="fDriver" placeholder="성명"></label>
+            <label>출발<input type="time" id="fStart" value="08:30"></label>
+            <label>복귀<input type="time" id="fEnd" value="17:30"></label>
+            <label>노선/업무<input type="text" id="fRoute" placeholder="예: 관용차/순회/출장"></label>
+          </div>
+          <label style="display:block;margin-top:10px">비고<textarea id="fNote" placeholder="특이사항"></textarea></label>
+          <div class="actions">
+            <button class="primary" id="btnAdd">등록</button>
+            <button class="muted" id="btnUpdate" disabled>수정 저장</button>
+            <button class="danger" id="btnCancelEdit" disabled>수정 취소</button>
+            <span class="hint">등록 후 아래 목록에서 클릭하면 **수정 모드**로 전환됩니다.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">조회/필터</div>
+        <div class="bd">
+          <div class="searchbar">
+            <label>시작일<input type="date" id="qFrom"></label>
+            <label>종료일<input type="date" id="qTo"></label>
+            <label>검색어<input type="text" id="qText" placeholder="차량, 운전자, 노선, 비고"></label>
+            <button id="btnClearFilter" class="muted" style="flex:0">필터 초기화</button>
+            <button id="btnPrint" style="flex:0">인쇄(오늘)</button>
+          </div>
+          <div class="footer">데이터는 이 PC의 브라우저(LocalStorage)에 자동 저장됩니다. 여러 PC에서 쓰려면 <b>내보내기</b>로 파일을 저장하고, 다른 PC에서 <b>가져오기</b> 하세요.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:14px">
+      <div class="hd">배차 목록 <span id="count" class="pill">0건</span></div>
+      <div class="table-wrap">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th style="width:110px">일자</th>
+              <th style="width:120px">차량</th>
+              <th style="width:110px">운전자</th>
+              <th style="width:90px">출발</th>
+              <th style="width:90px">복귀</th>
+              <th>노선/업무</th>
+              <th>비고</th>
+              <th style="width:120px">기능</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="footer">v1.0 · 단일 HTML 파일 · 오프라인 동작 가능 · 데이터는 브라우저 저장(보안상 민감정보 저장 금지)</p>
+  </div>
+
+<script>
+(function(){
+  const LS_KEY = 'dispatch.v1';
+  const $ = (s, p=document)=>p.querySelector(s);
+  const $$ = (s, p=document)=>Array.from(p.querySelectorAll(s));
+
+  const fDate = $('#fDate');
+  const fVehicle = $('#fVehicle');
+  const fDriver = $('#fDriver');
+  const fStart = $('#fStart');
+  const fEnd = $('#fEnd');
+  const fRoute = $('#fRoute');
+  const fNote = $('#fNote');
+  const btnAdd = $('#btnAdd');
+  const btnUpdate = $('#btnUpdate');
+  const btnCancelEdit = $('#btnCancelEdit');
+  const qFrom = $('#qFrom');
+  const qTo = $('#qTo');
+  const qText = $('#qText');
+  const btnClearFilter = $('#btnClearFilter');
+  const btnPrint = $('#btnPrint');
+  const btnExportCsv = $('#btnExportCsv');
+  const btnExportJson = $('#btnExportJson');
+  const fileImport = $('#fileImport');
+  const tblBody = $('#tbl tbody');
+  const count = $('#count');
+
+  let data = load();
+  let editingId = null;
+
+  // helpers
+  function todayStr(){
+    const tzOffset = new Date().getTimezoneOffset()*60000;
+    // ISO string in local tz
+    return new Date(Date.now()-tzOffset).toISOString().slice(0,10);
+  }
+  function load(){
+    try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); }catch(e){ return []; }
+  }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+  function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+  function toTimeNum(t){ return (t||'').replace(':','')*1 || 0 }
+  function normalize(rec){
+    return {
+      id: rec.id || uid(),
+      date: rec.date||'',
+      vehicle: (rec.vehicle||'').trim(),
+      driver: (rec.driver||'').trim(),
+      start: rec.start||'',
+      end: rec.end||'',
+      route: (rec.route||'').trim(),
+      note: (rec.note||'').trim(),
+    }
+  }
+  function sortData(arr){
+    return arr.slice().sort((a,b)=>{
+      if(a.date!==b.date) return a.date<b.date?-1:1;
+      const av = (a.vehicle||'').localeCompare(b.vehicle||'','ko');
+      if(av!==0) return av;
+      return toTimeNum(a.start)-toTimeNum(b.start);
+    });
+  }
+  function applyFilter(arr){
+    const t = (qText.value||'').trim().toLowerCase();
+    const from = qFrom.value || '';
+    const to = qTo.value || '';
+    return arr.filter(r=>{
+      if(from && r.date<from) return false;
+      if(to && r.date>to) return false;
+      if(!t) return true;
+      const hay = `${r.date}\n${r.vehicle}\n${r.driver}\n${r.route}\n${r.note}`.toLowerCase();
+      return hay.includes(t);
+    });
+  }
+  function render(){
+    const rows = applyFilter(sortData(data));
+    count.textContent = `${rows.length}건`;
+    tblBody.innerHTML = '';
+    for(const r of rows){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.date||''}</td>
+        <td>${escapeHtml(r.vehicle)}</td>
+        <td>${escapeHtml(r.driver)}</td>
+        <td>${r.start||''}</td>
+        <td>${r.end||''}</td>
+        <td>${escapeHtml(r.route)}</td>
+        <td>${escapeHtml(r.note)}</td>
+        <td>
+          <button data-act="edit" data-id="${r.id}">수정</button>
+          <button data-act="del" data-id="${r.id}" class="danger">삭제</button>
+        </td>`;
+      tblBody.appendChild(tr);
+    }
+  }
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  }
+
+  function clearForm(){ editingId=null; btnUpdate.disabled=true; btnCancelEdit.disabled=true; btnAdd.disabled=false; $$('input,textarea', $('.bd', $('.card'))); }
+  function fillForm(r){
+    fDate.value = r.date||'';
+    fVehicle.value = r.vehicle||'';
+    fDriver.value = r.driver||'';
+    fStart.value = r.start||'';
+    fEnd.value = r.end||'';
+    fRoute.value = r.route||'';
+    fNote.value = r.note||'';
+  }
+  function getForm(){
+    return normalize({
+      id: editingId || undefined,
+      date: fDate.value,
+      vehicle: fVehicle.value,
+      driver: fDriver.value,
+      start: fStart.value,
+      end: fEnd.value,
+      route: fRoute.value,
+      note: fNote.value,
+    });
+  }
+
+  // CSV / JSON
+  function download(filename, text){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], {type:'text/plain;charset=utf-8'}));
+    a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+  }
+  function toCsv(arr){
+    const header = ['id','date','vehicle','driver','start','end','route','note'];
+    const esc = s => '"'+ String(s??'').replace(/"/g,'""') +'"';
+    return [header.join(','), ...arr.map(r=>header.map(k=>esc(r[k])).join(','))].join('\n');
+  }
+  function parseCsv(text){
+    // simple CSV parser (handles quotes)
+    const lines = text.replace(/\r/g,'').split('\n').filter(x=>x.trim().length);
+    if(!lines.length) return [];
+    const header = splitCsvLine(lines[0]);
+    const idx = Object.fromEntries(header.map((h,i)=>[h.trim().toLowerCase(), i]));
+    const req = ['date','vehicle','driver'];
+    const out = [];
+    for(let i=1;i<lines.length;i++){
+      const cells = splitCsvLine(lines[i]);
+      const rec = normalize({});
+      for(const k of ['id','date','vehicle','driver','start','end','route','note']){
+        const j = idx[k]; if(j!=null) rec[k] = (cells[j]??'').replace(/^\"|\"$/g,'').replace(/\"\"/g,'"');
+      }
+      if(!rec.id) rec.id = uid();
+      if(!rec.date || !rec.vehicle || !rec.driver) continue; // skip invalid
+      out.push(rec);
+    }
+    return out;
+  }
+  function splitCsvLine(line){
+    const res=[]; let cur=''; let q=false; for(let i=0;i<line.length;i++){
+      const ch=line[i]; if(ch==='"'){ if(q && line[i+1]==='"'){cur+='"'; i++;} else q=!q; }
+      else if(ch===',' && !q){ res.push(cur); cur=''; }
+      else cur+=ch; }
+    res.push(cur); return res;
+  }
+
+  // Events
+  btnAdd.addEventListener('click', ()=>{
+    const rec = getForm();
+    if(!rec.date){ alert('일자를 입력하세요'); return; }
+    if(!rec.vehicle){ alert('차량번호/ID를 입력하세요'); return; }
+    if(!rec.driver){ alert('운전자를 입력하세요'); return; }
+    data.push(rec); save(); render(); fillForm({date:rec.date,start:'08:30',end:'17:30'}); fVehicle.focus();
+  });
+  btnUpdate.addEventListener('click', ()=>{
+    if(!editingId) return; const rec = getForm();
+    const i = data.findIndex(x=>x.id===editingId); if(i>=0){ data[i]=rec; save(); render(); cancelEdit(); }
+  });
+  btnCancelEdit.addEventListener('click', cancelEdit);
+  function cancelEdit(){ editingId=null; btnUpdate.disabled=true; btnCancelEdit.disabled=true; btnAdd.disabled=false; fillForm({date: todayStr(), start:'08:30', end:'17:30'}); }
+
+  tblBody.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return; const id = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act'); const rec = data.find(x=>x.id===id); if(!rec) return;
+    if(act==='edit'){
+      editingId = id; fillForm(rec); btnUpdate.disabled=false; btnCancelEdit.disabled=false; btnAdd.disabled=true;
+      window.scrollTo({top:0,behavior:'smooth'});
+    } else if(act==='del'){
+      if(confirm('삭제하시겠습니까?')){ data = data.filter(x=>x.id!==id); save(); render(); cancelEdit(); }
+    }
+  });
+
+  qFrom.addEventListener('change', render);
+  qTo.addEventListener('change', render);
+  qText.addEventListener('input', render);
+  btnClearFilter.addEventListener('click', ()=>{ qFrom.value=''; qTo.value=''; qText.value=''; render(); });
+
+  btnExportCsv.addEventListener('click', ()=>{
+    const rows = applyFilter(sortData(data));
+    download('dispatch.csv', toCsv(rows));
+  });
+  btnExportJson.addEventListener('click', ()=>{
+    const rows = applyFilter(sortData(data));
+    download('dispatch.json', JSON.stringify(rows, null, 2));
+  });
+  fileImport.addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const text = await f.text();
+    let arr = [];
+    if(f.name.toLowerCase().endsWith('.json')){
+      try{ arr = JSON.parse(text).map(normalize); }catch(err){ alert('JSON 파싱 실패'); return; }
+    }else{ arr = parseCsv(text); }
+    if(!arr.length){ alert('가져올 데이터가 없습니다.'); return; }
+    if(confirm(`총 ${arr.length}건을 현재 데이터에 합치겠습니까? (확인=병합 / 취소=대체)`)){
+      // merge by id (avoid duplicates)
+      const byId = Object.fromEntries(data.map(r=>[r.id, r]));
+      for(const r of arr){ byId[r.id]=r; }
+      data = Object.values(byId);
+    } else {
+      data = arr;
+    }
+    save(); render(); fileImport.value='';
+  });
+
+  btnPrint.addEventListener('click', ()=>{
+    const today = new Date();
+    const tzOffset = today.getTimezoneOffset()*60000;
+    const d = new Date(Date.now()-tzOffset).toISOString().slice(0,10);
+    qFrom.value = d; qTo.value = d; render(); setTimeout(()=>window.print(), 100);
+  });
+
+  // init
+  if(!data.length){
+    // seed: if empty, set date to today for convenience
+    fDate.value = todayStr();
+  } else {
+    fDate.value = todayStr();
+  }
+  render();
+})();
+</script>
+</body>
+</html>
